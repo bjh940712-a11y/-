@@ -230,9 +230,18 @@ function extract(){
   }
   // value-cell coordinates for special text coloring (공사명 / 공사지원)
   anchors.nameValueCell = rName>=0 ? [rName, nextVal(rName,0).c] : null;
+  anchors.supportValueCell = null;
   if(rDate>=0){
     for(let c=0;c<NC;c++){
-      if(norm(grid[rDate][c])==='공사지원'){ const nv=nextVal(rDate,c); anchors.supportValueCell=[rDate,nv.c]; }
+      if(norm(grid[rDate][c])!=='공사지원') continue;
+      // 공사지원 value cell is usually BLANK (waiting to be filled in), so nextVal (which
+      // skips to the next non-empty cell) would jump past it and pick the wrong column.
+      // Find it structurally instead: the merge covering the label, then whichever merge
+      // starts right after it on the same row is the value box.
+      const labelMerge = mergesArr.find(m=>m.s.r===rDate && m.s.c<=c && m.e.c>=c);
+      const afterCol = labelMerge ? labelMerge.e.c+1 : c+1;
+      const valMerge = mergesArr.filter(m=>m.s.r===rDate && m.s.c>=afterCol).sort((a,b)=>a.s.c-b.s.c)[0];
+      anchors.supportValueCell = [rDate, valMerge ? valMerge.s.c : afterCol];
     }
   }
   // eval section title row (contains '평가') -> page-break anchor
@@ -462,21 +471,13 @@ function buildSectionDOM(rStart, rEnd, supName, g){
         st+=`color:${NAME_TXT};font-style:italic;font-weight:600;text-align:left;padding-left:8px;`;
       }
       if(anchors.supportValueCell && r===anchors.supportValueCell[0] && c===anchors.supportValueCell[1]){
-        st+=`color:${NAME_TXT};font-style:italic;font-weight:600;`;
+        st+='font-weight:700;';
       }
       if(anchors.workValueCells.includes(r+'_'+c)){
         st+=`color:${BLUE_TXT};font-weight:600;`;
       }
       if(nv==='시공감리원'){
         st+=`background:${GRAY};font-weight:600;`;
-      }
-      // 시공감리원 value cell = row directly below label, same column as label
-      if(anchors.mgrCell){
-        for(let cc=0; cc<RNC; cc++){
-          if(norm(g[anchors.mgrCell[0]][cc])==='시공감리원' && r===anchors.mgrCell[0]+1 && c===cc && supName){
-            html = `<span style="font-weight:700;">${supName}</span>`;
-          }
-        }
       }
       td.style.cssText=st;
       td.innerHTML=html;
@@ -525,6 +526,9 @@ async function sheetToPdfBytes(){
   evalItems.forEach(it=>{ g[it.row][it.scoreCol] = Number(it.scores[it.sel]); });
   if(anchors.etcCell && $('etcComment').value.trim()) g[anchors.etcCell[0]][anchors.etcCell[1]] = $('etcComment').value.trim();
   const supName = $('supName').value.trim();
+  // 공사감독 이름은 '공사지원' 칸에 채운다. '시공감리원' 칸은 원본 엑셀에 이미 적힌 값을
+  // (있으면) 그대로 보여줘야 하므로 건드리지 않는다.
+  if(anchors.supportValueCell && supName) g[anchors.supportValueCell[0]][anchors.supportValueCell[1]] = supName;
 
   const lastRow = grid.length-1;
   const splitAt = anchors.evalTitleRow>=0 ? anchors.evalTitleRow : lastRow+1;
