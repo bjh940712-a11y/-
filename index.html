@@ -121,6 +121,7 @@ const COLW = [46,24,24,32,24,44,24,58,46,24,46,46,46,36,46,30,112,40,40,40,40]; 
 
 let grid = [], mergesArr = [], sheetUsed = '', meta = null, evalItems = [], pdfFiles = [];
 let anchors = {};
+let renderCols = []; // column indices actually worth drawing (excludes cols that are blank in every row)
 
 const $ = id => document.getElementById(id);
 const norm = v => String(v == null ? '' : v).replace(/\s+/g, '');
@@ -157,6 +158,12 @@ async function loadExcel(file){
       const row=[]; for(let c=0;c<NC;c++) row.push(rows[r] && rows[r][c]!==undefined ? rows[r][c] : '');
       grid.push(row);
     }
+    // some columns (0..RNC-1) are pure layout spacers that never hold a value anywhere in the
+    // sheet (Excel only used them to make merged-cell widths line up). Wherever a row's merge
+    // doesn't happen to reach across them, they render as bare bordered empty boxes. Since they
+    // never carry data in ANY row/section, they're safe to drop from rendering entirely.
+    renderCols = [];
+    for(let c=0;c<RNC;c++){ if(grid.some(row=>row[c]!=='')) renderCols.push(c); }
     extract();
     buildEvalUI();
     showInfo(file.name);
@@ -357,6 +364,9 @@ const GRAY_LABELS = new Set(['구분','실적(M)','주요소요자재현황','�
 const MAT_COL_START = 16; // 자재명 column: row-wide highlight bands must stop before this
 
 function buildSectionDOM(rStart, rEnd, supName, g){
+  const cols = renderCols.length ? renderCols : Array.from({length:RNC},(_,i)=>i);
+  const colSet = new Set(cols);
+
   const skip = new Set(), span = {};
   mergesArr.forEach(m=>{
     if(m.s.r<rStart || m.e.r>rEnd || m.s.c>=RNC) return; // only merges fully inside this section & rendered columns
@@ -370,7 +380,7 @@ function buildSectionDOM(rStart, rEnd, supName, g){
   const rowsToRender=[];
   for(let r=rStart;r<=rEnd;r++){
     let hasContent=false, hasSpanOwner=false;
-    for(let c=0;c<RNC;c++){
+    for(const c of cols){
       if(skip.has(r+'_'+c)) continue;
       if(g[r][c]!=='') hasContent=true;
       const sp=span[r+'_'+c];
@@ -379,35 +389,42 @@ function buildSectionDOM(rStart, rEnd, supName, g){
     if(hasContent||hasSpanOwner) rowsToRender.push(r);
   }
 
-  // rowSpan counts were computed against the ORIGINAL sheet row range, but some rows
-  // inside that range may have just been dropped (blank filler). Recompute each span's
-  // rowSpan to equal the number of rows that actually survive in rowsToRender, otherwise
-  // the DOM rowSpan overshoots the real number of <tr> elements and every row below
-  // shifts/corrupts (columns sliding into the wrong place).
+  // rowSpan/colSpan counts were computed against the ORIGINAL sheet row/column range, but
+  // some rows (blank filler) and columns (layout-only spacer columns, never hold data anywhere
+  // in the sheet) just got dropped from rendering. Recompute each span to equal the number of
+  // rows/columns that actually survive, otherwise the DOM span overshoots the real number of
+  // <tr>/<td> elements and everything below or to the right shifts/corrupts.
   const renderedSet = new Set(rowsToRender);
   Object.keys(span).forEach(key=>{
-    const r0 = parseInt(key.split('_')[0],10);
+    const [r0s,c0s] = key.split('_');
+    const r0 = parseInt(r0s,10), c0 = parseInt(c0s,10);
     const sp = span[key];
-    if(sp.rs<=1) return;
-    let count=0;
-    for(let rr=r0; rr<r0+sp.rs; rr++) if(renderedSet.has(rr)) count++;
-    sp.rs = Math.max(count,1);
+    if(sp.rs>1){
+      let count=0;
+      for(let rr=r0; rr<r0+sp.rs; rr++) if(renderedSet.has(rr)) count++;
+      sp.rs = Math.max(count,1);
+    }
+    if(sp.cs>1){
+      let count=0;
+      for(let cc=c0; cc<c0+sp.cs; cc++) if(colSet.has(cc)) count++;
+      sp.cs = Math.max(count,1);
+    }
   });
 
   const hr=anchors.perfHeader, tr=anchors.totalRow;
   const tbl=document.createElement('table');
   tbl.style.cssText='border-collapse:collapse;table-layout:fixed;background:#fff;font-family:\'Malgun Gothic\',sans-serif;';
   const cg=document.createElement('colgroup');
-  COLW.forEach(w=>{const col=document.createElement('col');col.style.width=w+'px';cg.appendChild(col);});
+  cols.forEach(c=>{const col=document.createElement('col');col.style.width=COLW[c]+'px';cg.appendChild(col);});
   tbl.appendChild(cg);
 
   for(const r of rowsToRender){
     const trEl=document.createElement('tr');
-    for(let c=0;c<RNC;c++){
+    for(const c of cols){
       if(skip.has(r+'_'+c)) continue;
       const td=document.createElement('td');
       const sp=span[r+'_'+c];
-      if(sp){ if(sp.rs>1)td.rowSpan=sp.rs; if(sp.cs>1)td.colSpan=Math.min(sp.cs,RNC-c); }
+      if(sp){ if(sp.rs>1)td.rowSpan=sp.rs; if(sp.cs>1)td.colSpan=sp.cs; }
       let v=g[r][c];
       let html = String(fmt(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;');
       // color the option line (적합/부분/미시행 등) blue inside multi-line 판단기준 cells
