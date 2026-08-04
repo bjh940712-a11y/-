@@ -65,10 +65,19 @@
     padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:.3s;pointer-events:none;z-index:99;}
   .toast.show{opacity:1;}
   #renderHost{position:absolute;left:-99999px;top:0;background:#fff;}
+  .sitenav{display:flex;gap:8px;margin:0 0 18px;flex-wrap:wrap;}
+  .sitenav a{font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;
+    border:1.5px solid var(--border);color:var(--muted);background:#fff;transition:.15s;}
+  .sitenav a:hover{border-color:var(--accent);color:var(--accent-dark);}
+  .sitenav a.on{background:var(--accent);border-color:var(--accent);color:#fff;}
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="sitenav">
+    <a href="/index.html" class="on">① 시공일지 변환·병합</a>
+    <a href="/소규모배관공사_준공도우미.html">② 소규모 배관공사 준공 도우미</a>
+  </div>
   <h1>공사시공일지 도우미</h1>
   <p class="sub">시공일지 엑셀 업로드 → 감독 이름·평가 입력 → PDF 변환·병합 → 결재 제목/본문 복사. 모든 처리는 브라우저 안에서만 이루어집니다.</p>
 

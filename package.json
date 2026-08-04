@@ -4,7 +4,7 @@
   "private": true,
   "description": "공사시공일지 도우미 - 정적 웹앱",
   "scripts": {
-    "start": "serve -s . -l $PORT"
+    "start": "serve . -l $PORT"
   },
   "dependencies": {
     "serve": "^14.2.3"
