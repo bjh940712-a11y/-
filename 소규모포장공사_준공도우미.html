@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>소규모 포장공사 준공보고 도우미</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+  :root{
+    --bg:#f7f7f5; --card:#fff; --border:#e3e1dc; --text:#2b2a27; --muted:#8a8780;
+    --accent:#c15f3c; --accent-dark:#a34e30; --ok:#4a7c59; --err:#b3432b; --blue:#3b6ea5;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;
+    background:var(--bg);color:var(--text);padding:28px 14px;}
+  .wrap{max-width:1180px;margin:0 auto;}
+  h1{font-size:22px;margin:0 0 4px;}
+  p.sub{color:var(--muted);margin:0 0 22px;font-size:13.5px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:14px;}
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .step{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+    border-radius:50%;background:var(--accent);color:#fff;font-size:12.5px;flex-shrink:0;}
+  .drop{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;
+    color:var(--muted);cursor:pointer;transition:.15s;font-size:13.5px;}
+  .drop:hover,.drop.drag{border-color:var(--accent);background:#fdf5f1;color:var(--accent-dark);}
+  input[type=file]{display:none;}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;}
+  input[type=text],input[type=number]{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13.5px;}
+  textarea{border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13.5px;width:100%;resize:vertical;font-family:inherit;}
+  button.btn{border:none;border-radius:8px;padding:10px 16px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.15s;}
+  .btn.primary{background:var(--accent);color:#fff;}
+  .btn.primary:hover{background:var(--accent-dark);}
+  .btn.secondary{background:#eee;color:var(--text);}
+  .btn.secondary:hover{background:#e0e0e0;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6;}
+  .log{margin-top:12px;font-size:12.5px;color:var(--muted);white-space:pre-wrap;max-height:140px;overflow-y:auto;line-height:1.6;}
+  .log .ok{color:var(--ok);} .log .err{color:var(--err);}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;
+    padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:.3s;pointer-events:none;z-index:99;}
+  .toast.show{opacity:1;}
+
+  /* 준공계(배치) 카드 */
+  ul.sites{list-style:none;margin:12px 0 0;padding:0;}
+  ul.sites li{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fbfbfa;}
+  ul.sites li .sitehead{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  ul.sites li .sitehead .idx{width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
+  ul.sites li .sitehead .fname{flex:1;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  ul.sites li .sitehead button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 6px;border-radius:4px;}
+  ul.sites li .sitehead button:hover{background:#eee;color:var(--text);}
+  .sitegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 12px;}
+  .sitegrid label{display:block;font-size:11px;color:var(--muted);margin-bottom:2px;}
+  .sitegrid input{width:100%;}
+
+  /* 준공검사조서 */
+  .appform{border:1px solid #c9c7c0;border-radius:8px;overflow:hidden;margin-top:10px;}
+  .apphead{display:grid;grid-template-columns:130px 1fr;font-size:12.5px;}
+  .apphead>div{border:1px solid #c9c7c0;padding:6px 9px;display:flex;align-items:center;}
+  .apphead .lbl{background:#dbe5f1;font-weight:700;}
+  .apphead input{border:none;width:100%;font-size:12.5px;background:transparent;}
+  .jgsgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px;}
+  .jgsitem{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;
+    padding:7px 10px;font-size:12.5px;background:#fbfbfa;}
+  .jgsitem .nm{flex:1;}
+  .jgsitem select{border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:12px;background:#fff;}
+
+  /* 전자결재 준공보고서 - 공사현황 및 준공내역 표 (수기 입력 행) */
+  ul.rows{list-style:none;margin:12px 0 0;padding:0;}
+  ul.rows li{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fbfbfa;}
+  ul.rows li .rowhead{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  ul.rows li .rowhead .idx{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  ul.rows li .rowhead button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 6px;border-radius:4px;}
+  ul.rows li .rowhead button:hover{background:#eee;color:var(--text);}
+  .rowgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px 12px;}
+  .rowgrid label{display:block;font-size:11px;color:var(--muted);margin-bottom:2px;}
+  .rowgrid input{width:100%;}
+
+  /* 첨부자료 병합 목록 */
+  ul.files{list-style:none;margin:12px 0 0;padding:0;}
+  ul.files li{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);
+    border-radius:8px;margin-bottom:7px;font-size:13px;background:#fbfbfa;}
+  ul.files li .idx{width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;font-size:11px;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  ul.files li .idx.fixed{background:var(--accent);}
+  ul.files li .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  ul.files li select{border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:12px;background:#fff;}
+  ul.files li button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 6px;border-radius:4px;}
+  ul.files li button:hover{background:#eee;color:var(--text);}
+
+  table.doctbl{border-collapse:collapse;width:100%;font-size:11.5px;margin-top:10px;table-layout:fixed;}
+  table.doctbl th,table.doctbl td{border:1px solid #c9c7c0;padding:5px 4px;text-align:center;vertical-align:middle;}
+  table.doctbl th{background:#eceae4;font-weight:700;}
+  table.doctbl td.nm{text-align:left;padding-left:6px;font-size:11px;}
+  table.doctbl tr.sumrow td{font-weight:700;background:#f5f3ee;}
+
+  .sitenav{display:flex;gap:8px;margin:0 0 18px;flex-wrap:wrap;}
+  .sitenav a{font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;
+    border:1.5px solid var(--border);color:var(--muted);background:#fff;transition:.15s;}
+  .sitenav a:hover{border-color:var(--accent);color:var(--accent-dark);}
+  .sitenav a.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="sitenav">
+    <a href="/index.html">① 시공일지 변환·병합</a>
+    <a href="/소규모배관공사_준공도우미.html">② 소규모 배관공사 준공 도우미</a>
+    <a href="/소규모포장공사_준공도우미.html" class="on">③ 소규모 포장공사 준공 도우미</a>
+  </div>
+  <h1>소규모 포장공사 준공보고 도우미</h1>
+  <p class="sub">준공계 PDF 업로드 → 준공검사조서 작성 → 결재문서 제목/본문 복사. 모든 처리는 브라우저 안에서만 이루어집니다.</p>
+
+  <div class="card">
+    <h2><span class="step">1</span> 준공계 업로드 <span style="font-weight:400;color:var(--muted);font-size:12px;">(여러 공사건이 함께 묶인 준공계면 1개, 별도 제출건이면 여러 개 업로드)</span></h2>
+    <div class="drop" id="pcDrop">준공계 PDF를 끌어다 놓거나 클릭해서 선택 (여러 개 선택 가능)
+      <input type="file" id="pcInput" accept=".pdf" multiple></div>
+    <ul class="sites" id="batchList"></ul>
+    <div class="hint">공사명·시공업체·계약(발주)금액·준공금액·착공일·준공일·준공계 접수일이 준공계 문서에서 자동 추출됩니다. 추출이 부정확하면 각 항목을 직접 수정하세요. 아래 준공검사조서·결재문서는 모두 이 정보를 함께 사용합니다.</div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="card" id="cardJgs" style="display:none;">
+    <h2><span class="step">2</span> 준공검사조서</h2>
+    <div class="appform">
+      <div class="apphead"><div class="lbl">1. 공 사 명</div><div id="jgs_name">-</div></div>
+      <div class="apphead"><div class="lbl">2. 시 공 업 체</div><div id="jgs_company">-</div></div>
+      <div class="apphead"><div class="lbl">3. 발 주 금 액</div><div id="jgs_order">-</div></div>
+      <div class="apphead"><div class="lbl">4. 준 공 금 액</div><div id="jgs_done">-</div></div>
+      <div class="apphead"><div class="lbl">5. 준공금 청구금액</div><div id="jgs_claim">-</div></div>
+      <div class="apphead"><div class="lbl">6. 착공년월일</div><div id="jgs_start">-</div></div>
+      <div class="apphead"><div class="lbl">7. 준공년월일</div><div id="jgs_end">-</div></div>
+    </div>
+
+    <div class="row">
+      <label style="font-size:12.5px;">검사자</label><input type="text" id="jgs_inspector" placeholder="이름 입력">
+      <label style="font-size:12.5px;">보고일자</label><input type="text" id="jgs_date" placeholder="YYYY-MM-DD">
+      <label style="font-size:12.5px;">지불요청일</label><input type="text" id="jgs_payreq" placeholder="예: 2026년 08월 일">
+    </div>
+
+    <div class="hint" style="margin-top:14px;">※ 첨부 (해당 서류에 ○ 표기, 기본값은 원본 양식 기준으로 미리 선택되어 있습니다. 다르면 변경하세요)</div>
+    <div class="jgsgrid" id="jgsGrid"></div>
+
+    <div class="row" style="margin-top:16px;">
+      <button class="btn primary" id="btnJgsPdf">준공검사조서 PDF 저장</button>
+    </div>
+  </div>
+
+  <div class="card" id="cardNe" style="display:none;">
+    <h2><span class="step">3</span> 내역서 업로드 <span style="font-weight:400;color:var(--muted);font-size:12px;">(공사현황표에 들어갈 공사건을 내역서에서 자동으로 채웁니다)</span></h2>
+    <div class="drop" id="neDrop">내역서 PDF를 끌어다 놓거나 클릭해서 선택
+      <input type="file" id="neInput" accept=".pdf"></div>
+    <div class="hint">순번·공사명·포장종별·포장연장(M)·공사금액·준공일자가 자동 추출되어 아래 "전자결재 준공보고서"의 공사현황표를 채웁니다. 포장종별(A.S.P·CON'C 등)에 따라 "포장 종류 및 복구방법" 기본값도 함께 채워집니다. 새 내역서를 업로드하면 기존 공사건 목록이 새로 채워진 목록으로 대체됩니다.</div>
+    <div class="log" id="neLogBox"></div>
+  </div>
+
+  <div class="card" id="cardOrder" style="display:none;">
+    <h2><span class="step">4</span> 발주문서 업로드 <span style="font-weight:400;color:var(--muted);font-size:12px;">(발주연장·발주금액·기안번호를 공사명으로 매칭해 자동으로 채웁니다)</span></h2>
+    <div class="drop" id="orderDrop">발주문서(작업발주 현황) PDF를 끌어다 놓거나 클릭해서 선택 (여러 개 선택 가능)
+      <input type="file" id="orderInput" accept=".pdf" multiple></div>
+    <ul id="orderFileList" style="list-style:none;padding:0;margin:8px 0 0;font-size:12.5px;color:var(--muted);"></ul>
+    <div class="hint">공사명 일치 여부로 자동 매칭하므로, 매칭이 안 되거나 부정확하면 아래 공사현황표에서 직접 수정하세요.</div>
+    <div class="log" id="orderLogBox"></div>
+  </div>
+
+  <div class="card" id="cardMerge" style="display:none;">
+    <h2><span class="step">5</span> 준공 첨부자료 병합 <span style="font-weight:400;color:var(--muted);font-size:12px;">(준공검사조서·준공계·내역서 뒤에 순서대로 첨부됩니다)</span></h2>
+    <div class="drop" id="attDrop">첨부할 PDF 자료(사진대지, 도면 등)를 끌어다 놓거나 클릭해서 추가 (여러 개 선택 가능)
+      <input type="file" id="attInput" accept=".pdf" multiple></div>
+    <ul class="files" id="attList"></ul>
+    <div class="hint">1~3번은 위 단계에서 업로드한 준공검사조서·준공계·내역서가 자동으로 순서대로 들어갑니다. 그 뒤에 추가한 파일은 파일명 옆 콤보박스에서 "원본유지 / 압축"을 선택할 수 있습니다. 압축은 PDF 각 페이지를 이미지로 재인코딩해 용량을 줄이지만 텍스트 선택·검색은 안 됩니다. 사진대지·스캔 도면류는 압축을, 텍스트 위주 문서는 원본유지를 권장합니다.</div>
+    <div class="row" style="margin-top:12px;">
+      <button class="btn primary" id="btnMergeJgs">준공검사조서 + 첨부자료 병합 저장</button>
+    </div>
+    <div class="log" id="mergeLog"></div>
+  </div>
+
+  <div class="card" id="cardDoc" style="display:none;">
+    <h2><span class="step">6</span> 전자결재 준공보고서</h2>
+    <div class="sitegrid">
+      <div><label>기안근거</label><input type="text" id="doc_basis" placeholder="예: 서라벌-제2026-0261 / 0318 / 0399 호에 의거"></div>
+      <div><label>대금지급방법</label><input type="text" id="doc_paymethod" value="공사발주계약 - 대금지급 규정에 의거 현금지급"></div>
+      <div><label>준공일자 (공사현황 표 공통값)</label><input type="text" id="doc_donedate" placeholder="예: 26/07/11"></div>
+      <div><label>포장 종류 및 복구방법 (표 공통값)</label><input type="text" id="doc_pavetype" placeholder="예: ASP 폭1.2m 확장복구, 차선"></div>
+    </div>
+
+    <div class="hint" style="margin-top:10px;">내역서를 업로드하면 아래 공사건 목록이 자동으로 채워지고, 발주문서를 업로드하면 발주연장·발주금액·기안번호도 자동으로 채워집니다. 필요하면 아래에서 직접 추가·수정하세요.</div>
+    <ul class="rows" id="rowList"></ul>
+    <div class="row">
+      <button class="btn secondary" id="btnAddRow">+ 공사건 추가</button>
+    </div>
+
+    <div class="scrollx" style="overflow-x:auto;">
+      <table class="doctbl" id="docTbl"></table>
+    </div>
+
+    <div class="row" style="margin-top:16px;flex-direction:column;align-items:stretch;">
+      <label style="font-size:12.5px;color:var(--muted);">결재문서 제목</label>
+      <div class="row"><input type="text" id="doc_title" style="flex:1;"><button class="btn secondary" id="btnCopyDocTitle">제목 복사</button></div>
+    </div>
+    <div class="row" style="display:flex;gap:10px;margin:14px 0;flex-wrap:wrap;">
+      <button class="btn primary" id="btnCopyDocBody">본문 복사 (표 포함)</button>
+      <span class="hint" style="margin:auto 0;">전자결재 편집기에 붙여넣으면 표 서식이 유지됩니다. 아래 미리보기는 직접 수정할 수 있습니다.</span>
+    </div>
+    <div id="docBodyPreview" contenteditable="true"
+      style="border:1px solid var(--border);border-radius:8px;padding:14px;background:#fff;font-family:'맑은 고딕','Malgun Gothic',sans-serif;font-size:10pt;line-height:1.8;overflow-x:auto;min-height:80px;"></div>
+  </div>
+</div>
+
+<div id="renderHost" style="position:absolute;left:-99999px;top:0;background:#fff;"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+const { jsPDF } = window.jspdf;
+const $ = id => document.getElementById(id);
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
+function log(msg, cls){ const d=document.createElement('div'); if(cls)d.className=cls; d.textContent=msg; $('log').appendChild(d); $('log').scrollTop=1e9; }
+
+function bindDrop(dropId, inputId, handler){
+  const drop=$(dropId), inp=$(inputId);
+  drop.addEventListener('click',()=>inp.click());
+  drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag');});
+  drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));
+  drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');handler(e.dataTransfer.files);});
+  inp.addEventListener('change',()=>{handler(inp.files); inp.value='';});
+}
+
+async function extractPdfText(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  let full='';
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const items = content.items.map(it=>({str:it.str, x:it.transform[4], y:it.transform[5]}));
+    items.sort((a,b)=> b.y-a.y || a.x-b.x);
+    const lines=[]; let cur=null; const Y_TOL=3;
+    for(const it of items){
+      if(!cur || Math.abs(cur.y-it.y)>Y_TOL){ cur={y:it.y, items:[it]}; lines.push(cur); }
+      else cur.items.push(it);
+    }
+    lines.forEach(line=>line.items.sort((a,b)=>a.x-b.x));
+    full += lines.map(line=>line.items.map(i=>i.str).join(' ')).join('\n') + '\n';
+  }
+  return full;
+}
+function pat(label){ return label.split('').map(ch=>ch.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('\\s*'); }
+function extractField(text, label, nextLabel){
+  const re = new RegExp(pat(label)+'\\s*[:：]\\s*([\\s\\S]*?)(?='+pat(nextLabel)+'\\s*[:：])');
+  const m = text.match(re);
+  return m ? m[1].replace(/\s+/g,' ').replace(/\s*\d+\.\s*$/,'').trim() : '';
+}
+// 포장 준공계는 각 글자가 개별 텍스트 상자로 찍혀 있어("2 0 2 6" 처럼 자릿수마다 벌어짐) 공백을
+// 모두 제거한 뒤 숫자만 뽑아야 안전하다. 날짜 구분자가 "."(시행일자)와 "년/월/일"(본문) 두 가지
+// 섞여 있으므로 "숫자 이외 문자는 전부 구분자"로 보고 파싱한다.
+function parseKrDate(raw){
+  const compact = (raw||'').replace(/\s+/g,'');
+  const m = compact.match(/(\d+)\D+(\d+)\D+(\d+)/);
+  if(!m) return '';
+  return `${m[1]}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+}
+function parsePojangJungongye(text){
+  const compact = s => (s||'').replace(/\s+/g,'');
+  // 공사명은 일반 단어 간격(글자별로 벌어져 있지 않음)이라 다중 공백만 한 칸으로 줄인다.
+  const name = extractField(text,'공사명','계약금액').replace(/\s+/g,' ').trim();
+  const contractRaw = extractField(text,'계약금액','준공금액');
+  const amountRaw = extractField(text,'준공금액','착공년월일');
+  const startRaw = extractField(text,'착공년월일','준공년월일');
+  const endRaw = extractField(text,'준공년월일','시공업체');
+  // "시공업체 :" 다음은 "상기" 뒤에 콜론이 없는 일반 문장이라, extractField의 콜론-필수 lookahead가
+  // 통하지 않는다. 콜론 요구 없이 "상기"가 나오기 전까지만 잘라내는 별도 정규식을 쓴다.
+  const companyMatch = text.match(new RegExp(pat('시공업체')+'\\s*[:：]\\s*([\\s\\S]*?)(?='+pat('상기')+')'));
+  const company = companyMatch ? compact(companyMatch[1]) : '';
+  const numOf = s => { const m=(s||'').match(/([\d]{1,3}(?:,\d{3})*)/); return m?parseInt(m[1].replace(/,/g,''),10):0; };
+  const filedMatch = text.match(/시\s*행\s*일\s*자\s+([0-9.\s]+)/);
+  return {
+    name, company,
+    contractAmt: numOf(contractRaw),
+    amount: numOf(amountRaw),
+    start: parseKrDate(startRaw),
+    end: parseKrDate(endRaw),
+    filedDate: filedMatch ? parseKrDate(filedMatch[1]) : '',
+  };
+}
+
+// extractPdfText와 같은 y좌표 클러스터링이지만, 표 컬럼을 x좌표로 구분해야 하므로
+// 줄 단위 문자열로 합치지 않고 각 아이템의 x좌표를 그대로 보존해서 반환한다.
+async function extractPdfLines(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  const pages = [];
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const items = content.items.map(it=>({str:it.str, x:it.transform[4], y:it.transform[5]})).filter(it=>it.str.trim()!=='');
+    items.sort((a,b)=> b.y-a.y || a.x-b.x);
+    const lines=[]; let cur=null; const Y_TOL=3;
+    for(const it of items){
+      if(!cur || Math.abs(cur.y-it.y)>Y_TOL){ cur={y:it.y, items:[it]}; lines.push(cur); }
+      else cur.items.push(it);
+    }
+    lines.forEach(line=>line.items.sort((a,b)=>a.x-b.x));
+    pages.push(lines);
+  }
+  return pages;
+}
+
+let batches = []; // {file, fileObj, name, company, contractAmt, amount, start, end, filedDate}
+bindDrop('pcDrop','pcInput', files=>{ Array.from(files).forEach(f=>{ if(f.name.toLowerCase().endsWith('.pdf')) loadJungongye(f); }); });
+
+async function loadJungongye(file){
+  try{
+    log('분석 중: '+file.name);
+    const text = await extractPdfText(file);
+    const f = parsePojangJungongye(text);
+    batches.push({ file:file.name, fileObj:file, ...f });
+    log('완료: '+file.name+' → '+(f.name||'(공사명 인식 실패, 직접 입력 필요)'), f.name?'ok':'err');
+    renderAll();
+    $('cardJgs').style.display='block';
+    $('cardNe').style.display='block';
+    $('cardOrder').style.display='block';
+    $('cardMerge').style.display='block';
+    $('cardDoc').style.display='block';
+  }catch(err){
+    log('실패: '+file.name+' - '+err.message,'err');
+  }
+}
+
+function renderBatches(){
+  const ul=$('batchList'); ul.innerHTML='';
+  batches.forEach((b,idx)=>{
+    const li=document.createElement('li');
+    li.innerHTML = `<div class="sitehead"><span class="idx">${idx+1}</span><span class="fname">${b.file}</span>
+      <button data-a="up" title="위로">▲</button><button data-a="down" title="아래로">▼</button>
+      <button data-a="del">✕</button></div>
+      <div class="sitegrid">
+        <div><label>공사명</label><input type="text" data-k="name" value="${b.name||''}"></div>
+        <div><label>시공업체</label><input type="text" data-k="company" value="${b.company||''}"></div>
+        <div><label>계약(발주)금액(원)</label><input type="number" data-k="contractAmt" value="${b.contractAmt||0}"></div>
+        <div><label>준공금액(원)</label><input type="number" data-k="amount" value="${b.amount||0}"></div>
+        <div><label>착공일</label><input type="text" data-k="start" value="${b.start||''}" placeholder="YYYY-MM-DD"></div>
+        <div><label>준공일</label><input type="text" data-k="end" value="${b.end||''}" placeholder="YYYY-MM-DD"></div>
+        <div><label>준공계 접수일</label><input type="text" data-k="filedDate" value="${b.filedDate||''}" placeholder="YYYY-MM-DD"></div>
+      </div>`;
+    li.querySelector('[data-a=up]').onclick=()=>{ if(idx>0){ [batches[idx-1],batches[idx]]=[batches[idx],batches[idx-1]]; renderAll(); } };
+    li.querySelector('[data-a=down]').onclick=()=>{ if(idx<batches.length-1){ [batches[idx+1],batches[idx]]=[batches[idx],batches[idx+1]]; renderAll(); } };
+    li.querySelector('[data-a=del]').onclick=()=>{ batches.splice(idx,1); renderAll(); if(!batches.length){$('cardJgs').style.display='none';$('cardMerge').style.display='none';$('cardDoc').style.display='none';} };
+    li.querySelectorAll('input[data-k]').forEach(inp=>{
+      inp.addEventListener('input',()=>{
+        const k=inp.dataset.k;
+        b[k] = (inp.type==='number') ? parseFloat(inp.value||0) : inp.value;
+        renderJGS(); renderDocOutput();
+      });
+    });
+    ul.appendChild(li);
+  });
+}
+
+/* =========================================================
+   2. 준공검사조서
+   ========================================================= */
+function fmtWon(n){ return (n||0).toLocaleString(); }
+const KR_DIGIT = ['','일','이','삼','사','오','육','칠','팔','구'];
+const KR_SMALL_UNIT = ['','십','백','천'];
+const KR_BIG_UNIT = ['','만','억','조','경'];
+function fourDigitToKorean(n){
+  if(n===0) return '';
+  const s = String(n).padStart(4,'0');
+  let out='';
+  for(let i=0;i<4;i++){ const d=+s[i]; if(d===0) continue; out += KR_DIGIT[d] + KR_SMALL_UNIT[3-i]; }
+  return out;
+}
+function numberToKoreanAmount(num){
+  num = Math.round(Math.abs(num));
+  if(num===0) return '영원정';
+  const groups=[]; let n=num;
+  while(n>0){ groups.push(n%10000); n=Math.floor(n/10000); }
+  let out='';
+  for(let i=groups.length-1;i>=0;i--){ if(groups[i]===0) continue; out += fourDigitToKorean(groups[i]) + (KR_BIG_UNIT[i]||''); }
+  return out+'원정';
+}
+function krAmountLine(n){ return `금 ${numberToKoreanAmount(n)} (₩${fmtWon(n)})`; }
+function krDate(iso){ if(!iso) return '-'; const [y,m,d]=iso.split('-'); return `${y}년 ${m}월 ${d}일`; }
+function krDateShort(iso){ if(!iso) return ''; const [,m,d]=iso.split('-'); return `${m}.${d}`; }
+
+function computeJgsHeader(){
+  if(!batches.length) return null;
+  const names = batches.map(b=>b.name||'(공사명 미확인)');
+  const nameStr = batches.length>1 ? `${names[0]} 외 ${batches.length-1}건` : names[0];
+  const orderAmt = batches.reduce((a,b)=>a+(b.contractAmt||0),0);
+  const doneAmt = batches.reduce((a,b)=>a+(b.amount||0),0);
+  const company = batches[0].company || '(미확인)';
+  const starts = batches.map(b=>b.start).filter(Boolean).sort();
+  const ends = batches.map(b=>b.end).filter(Boolean).sort();
+  const filedDates = batches.map(b=>b.filedDate).filter(Boolean).sort();
+  return {
+    nameStr, orderAmt, doneAmt, company,
+    startStr: starts[0]||'-', endStr: ends[ends.length-1]||'-',
+    filedShort: filedDates.length ? krDateShort(filedDates[filedDates.length-1]) : '',
+  };
+}
+
+const JGS_ITEMS = [
+  {key:'jungongye', label:'준공계', def:'○'},
+  {key:'orderdoc', label:'공사발주서', def:'○'},
+  {key:'bond', label:'하자증권(년간)', def:'○'},
+  {key:'photo', label:'사진대지', def:'○'},
+];
+let jgsSel = {};
+JGS_ITEMS.forEach(it=>{ jgsSel[it.key]=it.def; });
+
+function renderJgsGrid(){
+  const g = $('jgsGrid'); g.innerHTML='';
+  JGS_ITEMS.forEach(it=>{
+    const div = document.createElement('div');
+    div.className = 'jgsitem';
+    div.innerHTML = `<span class="nm">${it.label}</span>`+
+      `<select data-k="${it.key}"><option ${jgsSel[it.key]==='○'?'selected':''}>○</option><option ${jgsSel[it.key]==='해당없음'?'selected':''}>해당없음</option></select>`;
+    div.querySelector('select').addEventListener('change', e=>{ jgsSel[it.key] = e.target.value; });
+    g.appendChild(div);
+  });
+}
+
+function renderJGS(){
+  const h = computeJgsHeader();
+  if(!h) return;
+  $('jgs_name').textContent = h.nameStr;
+  $('jgs_company').textContent = h.company;
+  $('jgs_order').textContent = krAmountLine(h.orderAmt)+' - 부가세별도';
+  $('jgs_done').textContent = krAmountLine(h.doneAmt)+' - 부가세별도';
+  $('jgs_claim').textContent = krAmountLine(h.doneAmt)+' - 부가세별도';
+  $('jgs_start').textContent = h.startStr;
+  $('jgs_end').textContent = h.endStr + (h.filedShort ? ` (준공계접수 ${h.filedShort})` : '');
+  if(!$('jgs_date').value){
+    const d = new Date(); $('jgs_date').value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  renderJgsGrid();
+}
+
+const td = (v,st,extra)=>`<td ${extra||''} style="border:1px solid #555;padding:4px 7px;font-size:11px;text-align:center;vertical-align:middle;${st||''}">${v}</td>`;
+// 전자결재 공사현황표(docTbl) 전용 셀 - 그룹웨어에 붙여넣었을 때 8pt로 보이던 것을 9pt로 키우기 위해
+// td()와 별도로 font-size만 12px(≈9pt)로 크게 잡은 헬퍼를 둔다(준공검사조서 PDF의 td()는 그대로 유지).
+const tdDoc = (v,st,extra)=>`<td ${extra||''} style="border:1px solid #555;padding:5px 8px;font-size:12px;text-align:center;vertical-align:middle;${st||''}">${v}</td>`;
+
+function buildPrintJGS(){
+  const h = computeJgsHeader();
+  const inspector = $('jgs_inspector').value||'';
+  const payreq = $('jgs_payreq').value||'';
+  const dateStr = $('jgs_date').value||'';
+  const dparts = dateStr.split('-');
+  const dateKr = dparts.length===3 ? `${dparts[0]}년 ${dparts[1]}월 ${dparts[2]}일` : dateStr;
+
+  const row = (n,label,val)=>`<tr>${td(n+'. '+label,'text-align:left;font-weight:700;width:170px;')}${td(val,'text-align:left;padding-left:10px;')}</tr>`;
+  let html = `<div style="padding:24px;background:#fff;width:820px;font-family:'Malgun Gothic',sans-serif;border:2px solid #000;">`+
+    `<div style="font-size:22px;font-weight:700;text-align:center;letter-spacing:10px;margin-bottom:20px;">준공검사조서</div>`+
+    `<table style="border-collapse:collapse;width:100%;margin-bottom:16px;">`+
+    row(1,'공&nbsp;&nbsp;&nbsp;사&nbsp;&nbsp;&nbsp;명', h.nameStr)+
+    row(2,'시 공 업 체', h.company)+
+    row(3,'발 주 금 액', krAmountLine(h.orderAmt)+' - 부가세별도')+
+    row(4,'준 공 금 액', krAmountLine(h.doneAmt)+' - 부가세별도')+
+    row(5,'준공금 청구금액', krAmountLine(h.doneAmt)+' - 부가세별도')+
+    row(6,'착 공 년 월 일', h.startStr)+
+    row(7,'준 공 년 월 일', h.endStr+(h.filedShort?` (준공계접수 ${h.filedShort})`:''))+
+    `</table>`+
+    `<div style="font-size:12.5px;line-height:2;margin:20px 0;">`+
+    `위 상기 공사 실시 현장을 조사한 결과 첨부와 같이 전공정에 대하여 100%의 공사가 상위 없이 준공(기성) 되었기에 조사 보고 합니다.`+
+    `</div>`+
+    `<div style="text-align:right;font-size:12.5px;margin-bottom:10px;">${dateKr}</div>`+
+    `<div style="font-size:12.5px;margin-bottom:6px;">검사자 : ${inspector}</div>`+
+    (payreq ? `<div style="font-size:12px;margin-bottom:18px;">※ 지불요청일: ${payreq}</div>` : `<div style="margin-bottom:18px;"></div>`)+
+    `<div style="font-size:12px;margin-bottom:6px;">※ 첨부 (해당 서류에 ○ 표기)</div>`+
+    `<table style="border-collapse:collapse;table-layout:fixed;width:100%;">`+
+    `<colgroup><col style="width:25%"><col style="width:25%"><col style="width:25%"><col style="width:25%"></colgroup>`+
+    `<tr>${JGS_ITEMS.map(it=>td(it.label,'font-weight:700;')).join('')}</tr>`+
+    `<tr>${JGS_ITEMS.map(it=>td(jgsSel[it.key])).join('')}</tr>`+
+    `</table>`+
+    `</div>`;
+  return html;
+}
+
+async function renderToCanvas(html){
+  const host = $('renderHost');
+  host.innerHTML = html;
+  const el = host.firstElementChild;
+  const canvas = await html2canvas(el, {scale:2, backgroundColor:'#ffffff'});
+  host.innerHTML='';
+  return canvas;
+}
+function addCanvasAsPages(doc, canvas, isFirstPageOfDoc){
+  const pw=595.28, ph=841.89, mg=18;
+  const imgW=pw-mg*2, pageH=ph-mg*2;
+  const fullH=canvas.height*imgW/canvas.width;
+  if(fullH<=pageH){
+    if(!isFirstPageOfDoc) doc.addPage();
+    doc.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',mg,mg,imgW,fullH);
+  }else{
+    const sliceH=Math.floor(canvas.width*pageH/imgW);
+    let y=0, first=true;
+    while(y<canvas.height){
+      const h=Math.min(sliceH, canvas.height-y);
+      const c2=document.createElement('canvas'); c2.width=canvas.width; c2.height=h;
+      c2.getContext('2d').drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);
+      if(!isFirstPageOfDoc||!first) doc.addPage();
+      doc.addImage(c2.toDataURL('image/jpeg',0.95),'JPEG',mg,mg,imgW,h*imgW/canvas.width);
+      y+=h; first=false;
+    }
+  }
+}
+function download(bytes, filename){
+  const blob = new Blob([bytes], {type:'application/pdf'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+}
+async function jgsToPdfBytes(){
+  const doc = new jsPDF({orientation:'p',unit:'pt',format:'a4'});
+  const c1 = await renderToCanvas(buildPrintJGS());
+  addCanvasAsPages(doc, c1, true);
+  return doc.output('arraybuffer');
+}
+$('btnJgsPdf').addEventListener('click', async ()=>{
+  if(!batches.length){ toast('먼저 준공계를 업로드하세요'); return; }
+  try{
+    toast('PDF 생성 중...');
+    const bytes = await jgsToPdfBytes();
+    const nameStr = (computeJgsHeader().nameStr||'준공검사조서').replace(/[\\/:*?"<>|]/g,'');
+    download(bytes, `준공검사조서(${nameStr}).pdf`);
+    toast('PDF 저장 완료');
+  }catch(e){ toast('실패: '+e.message); }
+});
+
+/* =========================================================
+   3. 내역서 업로드 - 공사현황표 행 자동 채움
+   ========================================================= */
+function neLog(msg, cls){ const d=document.createElement('div'); if(cls)d.className=cls; d.textContent=msg; $('neLogBox').appendChild(d); $('neLogBox').scrollTop=1e9; }
+let neFile = null; // 마지막으로 업로드한 내역서 원본 파일 (첨부자료 병합 시 재사용)
+
+// 내역서(순번/공사명/포장종별/포장연장(M)/공사금액/준공일자/비고 표)를 파싱한다.
+// 실제 샘플 기준 한 행은 [순번]@~60 [공사명 ...]@90~260 [포장종별]@~277 [포장연장]@~325
+// [공사금액]@~387 [준공일자]@~434 [비고?]@~498 순으로 배치된다. "합계" 행은 순번 칸에 숫자 대신
+// "합계" 텍스트가 오므로(그리고 개별 공사건이 아니므로) 순번이 1~2자리 숫자인 행만 골라낸다.
+function parseNaeyeokseoRows(pages){
+  const out = [];
+  pages.forEach(lines=>{
+    lines.forEach(line=>{
+      const first = line.items[0];
+      if(!first || first.x>=80) return;
+      if(!/^\d{1,2}$/.test(first.str.trim())) return;
+      const rest = line.items.slice(1);
+      const numOf = s => { const m=(s||'').match(/-?[\d,]+(?:\.\d+)?/); return m?parseFloat(m[0].replace(/,/g,'')):0; };
+      const nameItems = rest.filter(it=>it.x<260);
+      const name = nameItems.map(it=>it.str).join(' ').replace(/\s+/g,' ').trim();
+      const typeItem = rest.find(it=>it.x>=260 && it.x<310);
+      const lenItem  = rest.find(it=>it.x>=310 && it.x<360);
+      const amtItem  = rest.find(it=>it.x>=360 && it.x<420);
+      const dateItem = rest.find(it=>it.x>=420 && it.x<480);
+      const noteItem = rest.find(it=>it.x>=480);
+      if(!name) return;
+      out.push({
+        name,
+        pavementType: (typeItem?.str||'').trim(),
+        len: numOf(lenItem?.str),
+        amount: numOf(amtItem?.str), // 원 단위 (내역서 표 상단 "단위:원" 표기 기준)
+        dateRaw: (dateItem?.str||'').trim(),
+        note: (noteItem?.str||'').trim(),
+      });
+    });
+  });
+  return out;
+}
+
+// 내역서 준공일자는 "07월 11일"처럼 연도가 없으므로, 준공계에서 파악한 연도를 붙여
+// 공사현황표 공통값 형식("26/07/11")으로 만든다.
+function naeyeokseoDateStr(raw, fallbackYear){
+  const m = (raw||'').match(/(\d+)\s*월\s*(\d+)\s*일/);
+  if(!m) return '';
+  const yy = String(fallbackYear).slice(-2);
+  return `${yy}/${String(+m[1]).padStart(2,'0')}/${String(+m[2]).padStart(2,'0')}`;
+}
+
+// 내역서의 "포장종별"(A.S.P, CON'C 등 표기가 제각각) 값을 결재문서의 "포장 종류 및 복구방법"
+// 기본 문구로 매핑한다. 점(.)·따옴표·대소문자를 모두 무시하고 알파벳만 비교해 유사 표기(ASP,
+// A.S.P, Con'c, CONC, CON`C 등)를 흡수한다.
+function pavementDefaultText(raw){
+  const norm = (raw||'').toUpperCase().replace(/[^A-Z]/g,'');
+  if(!norm) return '';
+  if(norm.includes('ASP')) return 'ASP 폭1.2m 확장복구, 차선';
+  if(norm.includes('CONC')) return "CON'C 폭0.9m 확장복구, 차선";
+  return (raw||'').trim();
+}
+
+async function loadNaeyeokseo(file){
+  try{
+    neLog('분석 중: '+file.name);
+    const pages = await extractPdfLines(file);
+    const parsed = parseNaeyeokseoRows(pages);
+    if(!parsed.length){ neLog('실패: '+file.name+' - 표를 인식하지 못했습니다. 형식이 다르면 아래 목록에 직접 입력하세요.','err'); return; }
+
+    const fallbackYear = ((batches.find(b=>b.end)||{}).end||'').slice(0,4) || new Date().getFullYear();
+    rows = parsed.map(p=>({
+      name: p.name, orderNo:'', orderLen:0,
+      doneLen: p.len, orderAmt:0, adjustAmt:0,
+      doneAmt: Math.round(p.amount/1000),
+      payAmt: Math.round(p.amount/1000),
+      note: p.note||'',
+      abolish: false,
+    }));
+
+    // 준공일자·포장종류및복구방법은 표 공통값이라, 비어있을 때만 내역서 기준으로 기본값을 채운다
+    if(!$('doc_donedate').value){
+      const ds = naeyeokseoDateStr(parsed[0].dateRaw, fallbackYear);
+      if(ds) $('doc_donedate').value = ds;
+    }
+    if(!$('doc_pavetype').value){
+      $('doc_pavetype').value = pavementDefaultText(parsed[0].pavementType);
+    }
+
+    const totalLen = parsed.reduce((a,p)=>a+p.len,0);
+    const totalAmt = Math.round(parsed.reduce((a,p)=>a+p.amount,0)/1000);
+    neLog(`완료: ${file.name} → ${parsed.length}건 인식 (총 준공연장 ${totalLen.toFixed(1)}M, 총 준공금액 ${totalAmt.toLocaleString()}천원)`,'ok');
+    neFile = file;
+    $('cardDoc').style.display='block';
+    renderAll();
+  }catch(err){
+    neLog('실패: '+file.name+' - '+err.message,'err');
+  }
+}
+bindDrop('neDrop','neInput', files=>{ const f=files[0]; if(f && f.name.toLowerCase().endsWith('.pdf')) loadNaeyeokseo(f); });
+
+/* =========================================================
+   4. 발주문서 업로드 - 발주연장/발주금액/기안번호 자동 채움
+   (소규모 배관공사 준공 도우미와 동일한 파싱 로직 재사용)
+   ========================================================= */
+function orderLog(msg, cls){ const d=document.createElement('div'); if(cls)d.className=cls; d.textContent=msg; $('orderLogBox').appendChild(d); $('orderLogBox').scrollTop=1e9; }
+
+// 기안근거/기안번호에 쓰이는 문서번호는 문서 하단 "시행" 항목에 적힌 결재문서번호이며,
+// 이 값은 파일명의 대괄호 안 텍스트와 동일하다. 본문에서 못 찾으면 파일명에서 추출한다.
+function extractOrderNo(fullText, fileName){
+  const m = fullText.match(new RegExp(pat('시행')+'\\s*[:：]?\\s*(\\S+)'));
+  if(m) return m[1].trim();
+  const fm = (fileName||'').match(/\[([^\[\]]+)\]/);
+  return fm ? fm[1].trim() : '';
+}
+// 문서번호(예: "서라벌-제2026-0536호")에서 연도 뒤 2자리와 일련번호만 뽑아 "26-0536" 형태로 줄인다.
+function shortOrderNo(raw){
+  const m = (raw||'').match(/(\d{4})\s*-\s*(\d{3,5})/);
+  if(!m) return raw||'';
+  return m[1].slice(-2)+'-'+m[2];
+}
+// 기안근거: 첫 문서번호는 전체 텍스트 그대로, 이후 문서는 "/"와 끝 4자리(일련번호)만 반복 기입
+function formatBasis(rawNos){
+  const uniq = [...new Set(rawNos)].filter(Boolean);
+  if(!uniq.length) return '';
+  const seqOf = s => { const m = s.match(/(\d{3,5})\s*호?\s*$/); return m ? m[1] : s; };
+  return uniq.map((no,i)=> i===0 ? no : seqOf(no)).join(' / ') + ' 에 의거';
+}
+
+// "작업발주 현황" 표를 파싱한다. 표 형식이 여러 컬럼 구성으로 나뉠 수 있어, 순번 앵커 행에서
+// 재질 뒤에 오는 숫자열을 오른쪽부터 세어 길이(연장)/배관소계/포장소계 컬럼을 판별한다.
+// 포장 단독 공사건은 len=포장연장, pave=포장소계(금액)로 사용한다.
+function parseOrderRows(pages){
+  const rows = [];
+  pages.forEach(lines=>{
+    let anchors = [];
+    lines.forEach((line,idx)=>{
+      const first = line.items[0];
+      if(first && first.x<42 && /^\d{1,2}$/.test(first.str.trim())) anchors.push(idx);
+    });
+    if(!anchors.length) return;
+    const isEndMarker = line => {
+      const joined = line.items.map(it=>it.str).join('').trim();
+      return /^합\s*계/.test(joined) || joined.startsWith('▣');
+    };
+    const endIdx = lines.findIndex((line,idx)=> idx>anchors[0] && isEndMarker(line));
+    const tableEnd = endIdx>=0 ? endIdx : lines.length;
+    anchors = anchors.filter(idx=>idx<tableEnd);
+    if(!anchors.length) return;
+    const HEADER_WORDS = new Set(['NO','공사명','주소','기존관','배관공사','포장공사','준공','기한','재질','관경','연장','배관','보도','소계',"ASP","합계","/CON'C"]);
+    let headerEnd = 0;
+    for(let i=0;i<anchors[0];i++){
+      if(lines[i].items.some(it=>HEADER_WORDS.has(it.str.trim()))) headerEnd = i+1;
+    }
+    const bandOf = new Array(lines.length).fill(-1);
+    anchors.forEach(idx=>bandOf[idx]=idx);
+    for(let i=headerEnd;i<tableEnd;i++){
+      if(bandOf[i]!==-1) continue;
+      let best=-1, bestDist=Infinity;
+      anchors.forEach(a=>{ const d=Math.abs(lines[a].y-lines[i].y); if(d<bestDist){bestDist=d;best=a;} });
+      bandOf[i]=best;
+    }
+    anchors.forEach(anchorIdx=>{
+      const bandLines = lines.filter((_,i)=>bandOf[i]===anchorIdx);
+      const nameItems = [];
+      bandLines.forEach(line=>line.items.forEach(it=>{ if(it.x>=42 && it.x<128) nameItems.push(it); }));
+      nameItems.sort((a,b)=> b.y-a.y || a.x-b.x);
+      const rowName = nameItems.map(it=>it.str).join(' ').replace(/\s+/g,' ').trim();
+      const rowText = bandLines.map(l=>l.items.map(it=>it.str).join(' ')).join(' ').replace(/\s+/g,' ').trim();
+      const anchorLine = lines[anchorIdx];
+      const tokens = anchorLine.items.map(it=>it.str).join(' ').split(/\s+/).filter(Boolean);
+      const numTok = t => /^-?[\d,]+(\.\d+)?$/.test(t) || t==='-';
+      // 비고 칸에 "소규모"처럼 실제 텍스트가 들어있으면 맨 끝 토큰이 숫자가 아니라서 꼬리 스캔이
+      // 곧바로 끊겨 표 전체가 인식되지 않는 문제가 있었다. 끝에서부터 숫자가 아닌 토큰(비고 텍스트,
+      // 여러 단어일 수 있음)을 먼저 건너뛴 뒤, 그 지점부터 숫자열을 센다.
+      let i = tokens.length-1;
+      while(i>=0 && !numTok(tokens[i])) i--;
+      let tail=[];
+      for(; i>=0; i--){ if(numTok(tokens[i])) tail.unshift(tokens[i]); else break; }
+      const num = t => t==='-'?0:parseFloat(String(t).replace(/,/g,''));
+      let len=null, pipe=null, pave=null;
+      if(tail.length>=8){ const t8 = tail.slice(-8); len = num(t8[2]); pipe = num(t8[5]); pave = num(t8[6]); }
+      else if(tail.length===7){ len = num(tail[1]); pipe = num(tail[4]); pave = num(tail[5]); }
+      if(len===null) return;
+      rows.push({ name: rowName, rowText, len, pipe, pave });
+    });
+  });
+  return rows;
+}
+
+// 공사명 마지막 단어(소유주명+건물유형)만 뽑아낸다. 준공계/내역서와 발주문서는 앞에 붙는
+// 동/리 등 위치 표기가 다를 수 있어 이 핵심 단어만 같으면 매칭시킨다.
+const BUILDING_SUFFIXES = ['상가주택','아파트','빌라','오피스텔','사무실','창고','공장','사옥','빌딩','상가','주택','건물'].sort((a,b)=>b.length-a.length);
+function coreName(name){
+  const tokens = (name||'').trim().split(/\s+/).filter(Boolean);
+  if(!tokens.length) return '';
+  for(let i=tokens.length-1;i>=0;i--){
+    const t = tokens[i];
+    if(BUILDING_SUFFIXES.some(sfx=>t.endsWith(sfx))) return t;
+  }
+  return tokens[tokens.length-1];
+}
+function matchOrderRowToSite(site, orderRows){
+  const norm = s => (s||'').replace(/\s+/g,'');
+  const siteName = norm(site.name);
+  if(!siteName) return null;
+  let best = orderRows.find(r => norm(r.rowText).includes(siteName));
+  if(!best) best = orderRows.find(r => norm(r.name).length>=2 && siteName.includes(norm(r.name)));
+  if(!best){
+    const siteCore = coreName(site.name);
+    if(siteCore && siteCore.length>=2) best = orderRows.find(r => coreName(r.name)===siteCore);
+  }
+  return best || null;
+}
+
+let orderFilesP = []; // {name, orderNo}
+function renderOrderFileList(){
+  const ul = $('orderFileList'); ul.innerHTML='';
+  orderFilesP.forEach(o=>{
+    const li=document.createElement('li');
+    li.textContent = o.name+(o.orderNo?` (문서번호: ${o.orderNo})`:'');
+    ul.appendChild(li);
+  });
+}
+async function loadOrderDoc(file){
+  try{
+    orderLog('분석 중: '+file.name);
+    const [fullText, pages] = await Promise.all([extractPdfText(file), extractPdfLines(file)]);
+    const orderNo = extractOrderNo(fullText, file.name);
+    const orderRows = parseOrderRows(pages);
+    orderFilesP.push({name:file.name, orderNo});
+    renderOrderFileList();
+
+    let matched=0;
+    rows.forEach(r=>{
+      const m = matchOrderRowToSite({name:r.name}, orderRows);
+      if(m){
+        r.orderLen = m.len||0;
+        r.orderAmt = m.pave||0;
+        if(orderNo) r.orderNo = shortOrderNo(orderNo);
+        matched++;
+      }
+    });
+    const allNos = orderFilesP.map(o=>o.orderNo).filter(Boolean);
+    if(allNos.length) $('doc_basis').value = formatBasis(allNos);
+
+    orderLog(`완료: ${file.name} → 문서번호 ${orderNo||'(인식 실패)'}, 표 ${orderRows.length}행 인식, 공사 ${matched}건 매칭`, matched?'ok':'err');
+    renderAll();
+  }catch(err){
+    orderLog('실패: '+file.name+' - '+err.message,'err');
+  }
+}
+bindDrop('orderDrop','orderInput', files=>{ Array.from(files).forEach(f=>{ if(f.name.toLowerCase().endsWith('.pdf')) loadOrderDoc(f); }); });
+
+/* =========================================================
+   5. 준공 첨부자료 병합 - 준공검사조서/준공계/내역서를 1~3번 고정 슬롯으로 넣고
+      그 뒤에 사용자가 추가한 파일(사진대지, 도면 등)을 이어붙인다. 파일별 압축 여부는
+      소규모 배관공사 준공 도우미와 동일한 방식(pdf-lib + pdf.js 캔버스 재인코딩)을 그대로 쓴다.
+   ========================================================= */
+const { PDFDocument } = PDFLib;
+function mergeLog(msg, cls){ const d=document.createElement('div'); if(cls)d.className=cls; d.textContent=msg; $('mergeLog').appendChild(d); $('mergeLog').scrollTop=1e9; }
+
+let attachFiles = []; // {file, compress:boolean} - 사용자가 추가로 첨부한 파일(1~3번 고정 슬롯 다음)
+bindDrop('attDrop','attInput', files=>{
+  Array.from(files).forEach(f=>{ if(f.name.toLowerCase().endsWith('.pdf')) attachFiles.push({file:f, compress:false}); });
+  renderAttachList();
+});
+
+// 1번 준공검사조서는 항상 고정, 2번 준공계·3번 내역서는 각 단계에서 실제로 업로드된 경우에만
+// 슬롯을 채운다(아직 없으면 건너뛰고 바로 사용자 첨부파일 번호를 앞당긴다).
+function renderAttachList(){
+  const ul = $('attList');
+  let html = `<li><span class="idx fixed">1</span><span class="name">준공검사조서 (항상 맨 앞, 위에서 생성한 내용 그대로)</span></li>`;
+  let n = 2;
+  if(batches.length){
+    html += `<li><span class="idx fixed">${n}</span><span class="name">준공계 (${batches.length}개 파일, 1단계에서 업로드)</span></li>`;
+    n++;
+  }
+  if(neFile){
+    html += `<li><span class="idx fixed">${n}</span><span class="name">내역서 (${neFile.name}, 3단계에서 업로드)</span></li>`;
+    n++;
+  }
+  ul.innerHTML = html;
+  attachFiles.forEach((a,idx)=>{
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="idx">${n+idx}</span><span class="name">${a.file.name}</span>`+
+      `<select data-a="compress"><option value="0" ${!a.compress?'selected':''}>원본유지</option><option value="1" ${a.compress?'selected':''}>압축</option></select>`+
+      `<button data-a="up">▲</button><button data-a="down">▼</button><button data-a="del">✕</button>`;
+    li.querySelector('[data-a=compress]').addEventListener('change', e=>{ a.compress = e.target.value==='1'; });
+    li.querySelector('[data-a=up]').onclick=()=>{ if(idx>0){ [attachFiles[idx-1],attachFiles[idx]]=[attachFiles[idx],attachFiles[idx-1]]; renderAttachList(); } };
+    li.querySelector('[data-a=down]').onclick=()=>{ if(idx<attachFiles.length-1){ [attachFiles[idx+1],attachFiles[idx]]=[attachFiles[idx],attachFiles[idx+1]]; renderAttachList(); } };
+    li.querySelector('[data-a=del]').onclick=()=>{ attachFiles.splice(idx,1); renderAttachList(); };
+    ul.appendChild(li);
+  });
+}
+
+function dataUrlToBytes(dataUrl){
+  const base64 = dataUrl.split(',')[1];
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return bytes;
+}
+
+// 압축 대상 파일의 각 페이지를 이미지로 리렌더링해 masterDoc에 새 페이지로 직접 추가한다.
+async function addCompressedPages(masterDoc, bytes, scale=1.5, quality=0.6){
+  const pdf = await pdfjsLib.getDocument({data:bytes}).promise;
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const base = page.getViewport({scale:1});
+    const viewport = page.getViewport({scale});
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(viewport.width));
+    canvas.height = Math.max(1, Math.round(viewport.height));
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    await page.render({canvasContext: ctx, viewport}).promise;
+    const jpgBytes = dataUrlToBytes(canvas.toDataURL('image/jpeg', quality));
+    const jpgImage = await masterDoc.embedJpg(jpgBytes);
+    const newPage = masterDoc.addPage([base.width, base.height]);
+    newPage.drawImage(jpgImage, {x:0, y:0, width:base.width, height:base.height});
+  }
+}
+
+async function mergeJgsBytes(){
+  const merged = await PDFDocument.create();
+  mergeLog('준공검사조서 변환 중...');
+  const jgsBytes = await jgsToPdfBytes();
+  const jgsSrc = await PDFDocument.load(jgsBytes);
+  (await merged.copyPages(jgsSrc, jgsSrc.getPageIndices())).forEach(p=>merged.addPage(p));
+  mergeLog('추가됨: 준공검사조서', 'ok');
+
+  for(const b of batches){
+    if(!b.fileObj) continue;
+    const bytes = await b.fileObj.arrayBuffer();
+    const src = await PDFDocument.load(bytes, {ignoreEncryption:true});
+    (await merged.copyPages(src, src.getPageIndices())).forEach(p=>merged.addPage(p));
+    mergeLog('추가됨: 준공계 - '+b.fileObj.name, 'ok');
+  }
+  if(neFile){
+    const bytes = await neFile.arrayBuffer();
+    const src = await PDFDocument.load(bytes, {ignoreEncryption:true});
+    (await merged.copyPages(src, src.getPageIndices())).forEach(p=>merged.addPage(p));
+    mergeLog('추가됨: 내역서 - '+neFile.name, 'ok');
+  }
+  for(const att of attachFiles){
+    const bytes = await att.file.arrayBuffer();
+    if(att.compress){
+      await addCompressedPages(merged, bytes);
+      mergeLog('추가됨(압축): '+att.file.name, 'ok');
+    } else {
+      const src = await PDFDocument.load(bytes, {ignoreEncryption:true});
+      (await merged.copyPages(src, src.getPageIndices())).forEach(p=>merged.addPage(p));
+      mergeLog('추가됨: '+att.file.name, 'ok');
+    }
+  }
+  return merged.save();
+}
+
+$('btnMergeJgs').addEventListener('click', async ()=>{
+  if(!batches.length){ toast('먼저 준공계를 업로드하세요'); return; }
+  try{
+    $('mergeLog').innerHTML='';
+    toast('병합 중...');
+    const bytes = await mergeJgsBytes();
+    download(bytes, `첨부. 준공검사조서 및 준공계.pdf`);
+    mergeLog('완료: 병합 PDF 저장됨', 'ok');
+    toast('저장 완료');
+  }catch(e){ mergeLog('실패: '+e.message,'err'); toast('실패: '+e.message); }
+});
+
+/* =========================================================
+   6. 전자결재 준공보고서 - 공사현황 및 준공내역 (수기 입력 행)
+   ========================================================= */
+let rows = []; // {name, orderNo, orderLen, doneLen, orderAmt, adjustAmt, doneAmt, payAmt, note, abolish}
+function addRow(prefill){
+  rows.push(Object.assign({name:'',orderNo:'',orderLen:0,doneLen:0,orderAmt:0,adjustAmt:0,doneAmt:0,payAmt:0,note:'',abolish:false}, prefill||{}));
+  renderAll();
+}
+$('btnAddRow').addEventListener('click', ()=>addRow());
+
+function renderRows(){
+  const ul=$('rowList'); ul.innerHTML='';
+  rows.forEach((r,idx)=>{
+    const li=document.createElement('li');
+    li.innerHTML = `<div class="rowhead"><span class="idx">${idx+1}</span><span style="flex:1;font-size:12px;color:var(--muted);">공사건 ${idx+1}</span>
+      <button data-a="up" title="위로">▲</button><button data-a="down" title="아래로">▼</button>
+      <button data-a="del">✕</button></div>
+      <div class="rowgrid">
+        <div><label>공사명</label><input type="text" data-k="name" value="${r.name||''}"></div>
+        <div><label>기안번호</label><input type="text" data-k="orderNo" value="${r.orderNo||''}" placeholder="예: 2026-0399"></div>
+        <div><label>발주연장(M)</label><input type="number" step="0.1" data-k="orderLen" value="${r.orderLen||0}"></div>
+        <div><label>준공연장(M)</label><input type="number" step="0.1" data-k="doneLen" value="${r.doneLen||0}"></div>
+        <div><label>발주금액(천원)</label><input type="number" data-k="orderAmt" value="${r.orderAmt||0}"></div>
+        <div><label>정산금액(천원)</label><input type="number" data-k="adjustAmt" value="${r.adjustAmt||0}"></div>
+        <div><label>준공금액(천원)</label><input type="number" data-k="doneAmt" value="${r.doneAmt||0}"></div>
+        <div><label>금회지급액(천원)</label><input type="number" data-k="payAmt" value="${r.payAmt||0}"></div>
+        <div><label>비고</label><input type="text" data-k="note" value="${r.note||''}"></div>
+        <div><label>&nbsp;</label><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);font-weight:400;">
+          <input type="checkbox" data-k="abolish" ${r.abolish?'checked':''} style="width:auto;"> 폐지 공사 (공사명 뒤 "(폐지)" 표시)</label></div>
+      </div>`;
+    li.querySelector('[data-a=up]').onclick=()=>{ if(idx>0){ [rows[idx-1],rows[idx]]=[rows[idx],rows[idx-1]]; renderAll(); } };
+    li.querySelector('[data-a=down]').onclick=()=>{ if(idx<rows.length-1){ [rows[idx+1],rows[idx]]=[rows[idx],rows[idx+1]]; renderAll(); } };
+    li.querySelector('[data-a=del]').onclick=()=>{ rows.splice(idx,1); renderAll(); };
+    li.querySelectorAll('input[data-k]').forEach(inp=>{
+      const evt = inp.type==='checkbox' ? 'change' : 'input';
+      inp.addEventListener(evt,()=>{
+        const k=inp.dataset.k;
+        r[k] = inp.type==='checkbox' ? inp.checked : (inp.type==='number' ? parseFloat(inp.value||0) : inp.value);
+        renderDocTbl(); renderDocOutput();
+      });
+    });
+    ul.appendChild(li);
+  });
+}
+
+function fmtThousand(n){ return Math.round(n||0).toLocaleString(); }
+function docSums(){
+  return rows.reduce((a,r)=>({
+    orderLen:a.orderLen+(r.orderLen||0), doneLen:a.doneLen+(r.doneLen||0),
+    orderAmt:a.orderAmt+(r.orderAmt||0), adjustAmt:a.adjustAmt+(r.adjustAmt||0),
+    doneAmt:a.doneAmt+(r.doneAmt||0), payAmt:a.payAmt+(r.payAmt||0),
+  }), {orderLen:0,doneLen:0,orderAmt:0,adjustAmt:0,doneAmt:0,payAmt:0});
+}
+function computeDocNameStr(){
+  if(!rows.length) return '';
+  return rows.length>1 ? `${rows[0].name||'(공사명 미확인)'} 외 ${rows.length-1}건` : (rows[0].name||'(공사명 미확인)');
+}
+
+// 공사명이 10자 이상이면 미리 <br>을 넣어 줄바꿈한다. 표 폭이 좁은 상태에서 브라우저의 자동
+// 줄바꿈에만 맡기면 붙여넣는 그룹웨어 편집기마다 결과가 달라질 수 있어, 공백 근처(±2자)에서
+// 끊어 명시적으로 두 줄로 만든다. 공백을 못 찾으면 10번째 글자에서 그냥 자른다.
+function wrapLongName(name, max){
+  max = max||10;
+  if(!name || name.length<=max) return name||'';
+  let cut = max;
+  for(let i=Math.min(max+2, name.length-1); i>=Math.max(max-2,1); i--){
+    if(name[i]===' '){ cut=i; break; }
+  }
+  const head = name.slice(0,cut).trim();
+  const tail = name.slice(cut).trim();
+  return tail ? head+'<br>'+tail : head;
+}
+function docNameLabel(r){
+  const name = (r.name||'').trim();
+  if(!name) return '-';
+  return wrapLongName(name + (r.abolish ? '(폐지)' : ''));
+}
+
+function renderDocTbl(){
+  const tbl = $('docTbl');
+  if(!rows.length){ tbl.innerHTML=''; return; }
+  const H='background:#e2efda;font-weight:700;', G='background:#e2efda;font-weight:700;';
+  const PAY='color:#1155cc;font-weight:700;';
+  const donedate = $('doc_donedate').value||'';
+  const pavetype = $('doc_pavetype').value||'';
+
+  const spanAt = {};
+  rows.forEach((r,idx)=>{
+    const no=r.orderNo||'';
+    if(no && idx>0 && (rows[idx-1].orderNo||'')===no){
+      let start=idx; while(start>0 && (rows[start-1].orderNo||'')===no) start--;
+      spanAt[start] = (spanAt[start]||1)+1;
+    }
+  });
+
+  let body='';
+  rows.forEach((r,idx)=>{
+    const isCont = r.orderNo && idx>0 && (rows[idx-1].orderNo||'')===r.orderNo;
+    body += '<tr>'+tdDoc(idx+1)+tdDoc(docNameLabel(r),'text-align:left;');
+    if(!isCont){ const span=spanAt[idx]; body += tdDoc(r.orderNo||'-','',span?`rowspan="${span}"`:''); }
+    body += tdDoc(r.orderLen?r.orderLen.toFixed(1):'-')+
+      tdDoc(r.doneLen?r.doneLen.toFixed(1):'-')+
+      tdDoc(r.orderAmt?fmtThousand(r.orderAmt):'-')+
+      tdDoc(r.adjustAmt?fmtThousand(r.adjustAmt):'-')+
+      tdDoc(r.doneAmt?fmtThousand(r.doneAmt):'-')+
+      tdDoc(r.payAmt?fmtThousand(r.payAmt):'-', PAY);
+    if(idx===0){
+      body += tdDoc(donedate||'-','',`rowspan="${rows.length}"`)+
+        tdDoc(pavetype||'-','',`rowspan="${rows.length}"`);
+    }
+    body += tdDoc(r.note||'','text-align:left;')+'</tr>';
+  });
+  const sum = docSums();
+  const sumRow = '<tr>'+tdDoc('합&nbsp;계',G,'colspan="3"')+
+    tdDoc(sum.orderLen?sum.orderLen.toFixed(1):'-',G)+
+    tdDoc(sum.doneLen?sum.doneLen.toFixed(1):'-',G)+
+    tdDoc(sum.orderAmt?fmtThousand(sum.orderAmt):'-',G)+
+    tdDoc(sum.adjustAmt?fmtThousand(sum.adjustAmt):'-',G)+
+    tdDoc(sum.doneAmt?fmtThousand(sum.doneAmt):'-',G)+
+    tdDoc(sum.payAmt?fmtThousand(sum.payAmt):'-',G+PAY)+
+    tdDoc('',G)+tdDoc('',G)+tdDoc('',G)+'</tr>';
+
+  // 좁은 열에 텍스트가 세로로 한 글자씩 밀려 쌓이는 것을 막기 위해 %가 아닌 고정 px 폭을 쓴다
+  // (배관공사 앱의 공사규모표와 동일한 방식). 글자를 8pt→9pt로 키운 만큼 전체 폭도 약 10% 키웠고,
+  // 발주연장/준공연장/준공일자/비고 열은 한 번 더 1.1배, 이후 발주연장/준공연장은 요청에 따라
+  // 한 번 더 1.1배 키웠다(합계 916px).
+  const colGroup = `<colgroup>`+
+    `<col style="width:40px"><col style="width:121px"><col style="width:77px">`+
+    `<col style="width:67px"><col style="width:67px"><col style="width:62px"><col style="width:62px"><col style="width:62px"><col style="width:62px">`+
+    `<col style="width:68px"><col style="width:143px"><col style="width:85px">`+
+    `</colgroup>`;
+  tbl.innerHTML = colGroup+
+    `<tr>${tdDoc('순',H)}${tdDoc('공사명',H)}${tdDoc('기안번호',H)}${tdDoc('발주연장<br>(M)',H)}${tdDoc('준공연장<br>(M)',H)}`+
+    `${tdDoc('발주<br>금액',H)}${tdDoc('정산<br>금액',H)}${tdDoc('준공<br>금액',H)}${tdDoc('금회<br>지급액',H)}${tdDoc('준공<br>일자',H)}${tdDoc('포장 종류 및<br>복구방법',H)}${tdDoc('비고',H)}</tr>`+
+    body+sumRow;
+}
+
+function buildDocTable(){
+  return $('docTbl').outerHTML;
+}
+
+function buildDocTitle(){
+  if(!rows.length) return '';
+  return `소규모 포장공사 준공보고 및 준공금 지급품의 - ${computeDocNameStr()}`;
+}
+
+function buildDocBody(){
+  const company = batches[0]?.company || '-';
+  const basis = $('doc_basis').value||'';
+  const payMethod = $('doc_paymethod').value||'';
+  const FONT = "font-family:'맑은 고딕','Malgun Gothic',sans-serif;";
+  const AREA_LINE = `<table style="width:100%;border-collapse:collapse;margin:4px 0;" border="0"><tr><td align="center" style="text-align:center;${FONT}font-size:10pt;"><b>----아&nbsp;&nbsp;래----</b></td></tr></table>`;
+  return `<div style="${FONT}font-size:10pt;line-height:1.8;"><b>우리회사에서 발주하여 시행한 포장공사가 완료됨에 따라 아래와 같이 준공보고 및 준공금 지급품의 하오니 검토후 재가하여 주시기 바랍니다.</b><br><br>`+
+    AREA_LINE+`<br>`+
+    `<b>1. 기 안 근 거</b> : ${basis}<br>`+
+    `<b>2. 시 공 업 체</b> : ${company}<br>`+
+    `<b>3. 대금지급방법</b> : ${payMethod}<br>`+
+    // 표(916px)와 폭을 맞춘다 - width:100%로 두면 그룹웨어 편집기의 넓은 본문 폭 기준으로 늘어나
+    // "(단위: 천원)" 텍스트가 표 오른쪽 끝을 한참 지나쳐 화면 밖으로 밀려나는 문제가 있었다.
+    `<table style="width:916px;border-collapse:collapse;table-layout:fixed;margin:2px 0 0;" border="0"><tr>`+
+      `<td align="left" style="text-align:left;${FONT}font-size:10pt;border:none;padding:0;"><b>4. 공사현황 및 준공내역</b></td>`+
+      `<td align="right" style="text-align:right;${FONT}font-size:9pt;color:#666;border:none;padding:0;">(단위: 천원)</td>`+
+    `</tr></table>`+
+    buildDocTable()+
+    `<br>※ 참조 : 1. 발주품의 기안지 각 1부.<br>`+
+    `※ 첨부 : 1. 준공검사조서 및 준공계(포장) 1부.&nbsp;&nbsp;&nbsp;&nbsp;끝`+
+    `</div>`;
+}
+
+function renderDocOutput(){
+  if(!rows.length) return;
+  $('doc_title').value = buildDocTitle();
+  $('docBodyPreview').innerHTML = buildDocBody();
+}
+['doc_basis','doc_paymethod','doc_donedate','doc_pavetype'].forEach(id=>{
+  $(id).addEventListener('input', ()=>{ renderDocTbl(); renderDocOutput(); });
+});
+
+async function copyRich(el){
+  try{
+    await navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([el.innerHTML],{type:'text/html'}),
+      'text/plain': new Blob([el.innerText],{type:'text/plain'})
+    })]);
+    return true;
+  }catch(e){
+    const r=document.createRange(); r.selectNodeContents(el);
+    const s=getSelection(); s.removeAllRanges(); s.addRange(r);
+    const ok=document.execCommand('copy'); s.removeAllRanges();
+    return ok;
+  }
+}
+$('btnCopyDocTitle').addEventListener('click', async ()=>{
+  try{ await navigator.clipboard.writeText($('doc_title').value); }
+  catch(e){ $('doc_title').select(); document.execCommand('copy'); }
+  toast('제목이 복사되었습니다');
+});
+$('btnCopyDocBody').addEventListener('click', async ()=>{
+  const ok = await copyRich($('docBodyPreview'));
+  toast(ok?'본문이 복사되었습니다 (표 포함)':'복사 실패 - 미리보기를 드래그해서 복사해 주세요');
+});
+
+function renderAll(){
+  renderBatches();
+  renderJGS();
+  renderAttachList();
+  renderRows();
+  renderDocTbl();
+  renderDocOutput();
+}
+// 준공계를 처음 업로드하면 공사현황표에 1건을 기본으로 만들어 시작하기 편하게 한다
+const _origLoadJungongye = loadJungongye;
+loadJungongye = async function(file){
+  const before = batches.length;
+  await _origLoadJungongye(file);
+  if(before===0 && batches.length>0 && rows.length===0){
+    addRow({name:batches[0].name||''});
+  }
+};
+</script>
+</body>
+</html>

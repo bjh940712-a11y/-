@@ -137,6 +137,7 @@
   <div class="sitenav">
     <a href="/index.html">① 시공일지 변환·병합</a>
     <a href="/소규모배관공사_준공도우미.html" class="on">② 소규모 배관공사 준공 도우미</a>
+    <a href="/소규모포장공사_준공도우미.html">③ 소규모 포장공사 준공 도우미</a>
   </div>
   <h1>소규모 배관공사 준공보고 도우미</h1>
   <p class="sub">준공계 PDF 업로드 → 아래 탭에서 원하는 결과물 생성. 모든 처리는 브라우저 안에서만 이루어집니다.</p>
@@ -905,8 +906,7 @@ $('btnPdf').addEventListener('click', async ()=>{
     addCanvasAsPages(doc, c1, true);
     const c2 = await renderToCanvas(buildPrintApply());
     addCanvasAsPages(doc, c2, false);
-    const nameStr = computeHeader().nameStr.replace(/[\\/:*?"<>|]/g,'');
-    doc.save(`시공평가서(${nameStr}).pdf`);
+    doc.save(`첨부 2. 시공평가서.pdf`);
     toast('PDF 저장 완료');
   }catch(e){ toast('실패: '+e.message); }
 });
@@ -1194,8 +1194,7 @@ $('btnMergeJgs').addEventListener('click', async ()=>{
     $('mergeLog').innerHTML='';
     toast('병합 중...');
     const bytes = await mergeJgsBytes();
-    const nameStr = computeJgsHeader().nameStr.replace(/[\\/:*?"<>|]/g,'');
-    download(bytes, `준공검사조서_첨부일체(${nameStr}).pdf`);
+    download(bytes, `첨부 1. 준공검사조서 및 준공계.pdf`);
     mergeLog('완료: 병합 PDF 저장됨', 'ok');
     toast('저장 완료');
   }catch(e){ mergeLog('실패: '+e.message,'err'); toast('실패: '+e.message); }
@@ -1321,8 +1320,14 @@ function parseOrderRows(pages){
       const anchorLine = lines[anchorIdx];
       const tokens = anchorLine.items.map(it=>it.str).join(' ').split(/\s+/).filter(Boolean);
       const numTok = t => /^-?[\d,]+(\.\d+)?$/.test(t) || t==='-';
+      // 비고 칸에 "소규모"처럼 실제 텍스트가 들어있으면 맨 끝 토큰이 숫자가 아니라서 꼬리 스캔이
+      // 곧바로 끊겨 표 전체가 인식되지 않는 문제가 있었다(발주서에 비고가 채워진 경우 발주매칭이
+      // 통째로 실패). 끝에서부터 숫자가 아닌 토큰(비고 텍스트, 여러 단어일 수 있음)을 먼저 건너뛴
+      // 뒤, 그 지점부터 숫자열을 센다.
+      let i = tokens.length-1;
+      while(i>=0 && !numTok(tokens[i])) i--;
       let tail=[];
-      for(let i=tokens.length-1;i>=0;i--){ if(numTok(tokens[i])) tail.unshift(tokens[i]); else break; }
+      for(; i>=0; i--){ if(numTok(tokens[i])) tail.unshift(tokens[i]); else break; }
       const num = t => t==='-'?0:parseFloat(String(t).replace(/,/g,''));
       let len=null, pipe=null, pave=null;
       if(tail.length>=8){ // 관경(기존관) 관경(배관) 연장 배관 보도 소계 ASP 합계
